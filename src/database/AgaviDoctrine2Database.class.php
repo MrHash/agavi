@@ -99,6 +99,11 @@ abstract class AgaviDoctrine2Database extends AgaviDatabase
 	 */
 	public function shutdown()
 	{
+		if($this->connection) 
+		{
+			$this->connection->getConnection()->close();
+		}
+		
 		$this->connection = $this->resource = null;
 	}
 }
