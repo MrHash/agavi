@@ -53,13 +53,19 @@ class AgaviSecurityFilter extends AgaviFilter implements AgaviIActionFilter, Aga
 		// get the current action instance
 		$actionInstance = $container->getActionInstance();
 
-		if(!$actionInstance->isSecure()) {
-			// the action instance does not require authentication, so we can continue in the chain and then bail out early
-			return $filterChain->execute($container);
-		}
-
 		// get the credential required for this action
 		$credential = $actionInstance->getCredentials();
+
+		if(!$actionInstance->isSecure()) {
+			// the action instance does not require authentication, so we can continue in the chain and then bail out early
+			try {
+				return $filterChain->execute($container);
+			} catch(AgaviSecurityException $e) {
+				// authorization filter threw an exception, handle it
+				$container->setNext($container->createSystemActionForwardContainer('secure'));
+				return;
+			}
+		}
 
 		// credentials can be anything you wish; a string, array, object, etc.
 		// as long as you add the same exact data to the user as a credential,
@@ -68,10 +74,18 @@ class AgaviSecurityFilter extends AgaviFilter implements AgaviIActionFilter, Aga
 		// NOTE: the nice thing about the Action class is that getCredential()
 		//       is vague enough to describe any level of security and can be
 		//       used to retrieve such data and should never have to be altered
+		$notAuthorized = false;
 		if($user->isAuthenticated() && ($credential === null || $user->hasCredentials($credential))) {
 			// the user has access, continue
-			$filterChain->execute($container);
+			try {
+				$filterChain->execute($container);
+			} catch(AgaviSecurityException $e) {
+				$notAuthorized = true;
+			}
 		} else {
+			$notAuthorized = true;
+		}
+		if($notAuthorized) {
 			if($user->isAuthenticated()) {
 				// the user doesn't have access
 				$container->setNext($container->createSystemActionForwardContainer('secure'));

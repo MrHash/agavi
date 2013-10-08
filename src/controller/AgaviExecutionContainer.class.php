@@ -112,16 +112,19 @@ class AgaviExecutionContainer extends AgaviAttributeHolder
 	protected $next = null;
 
 	/**
-	 * action names can contain any valid php token, dots and slashes for subactions
+	 * Action names may contain any valid PHP token, as well as dots and slashes
+	 * (for sub-actions).
 	 */
 	const SANE_ACTION_NAME = '/[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff\/.]*/';
 	
 	/**
-	 * view names can contain any valid php token, dots and slashes for subactions
+	 * View names may contain any valid PHP token, as well as dots and slashes
+	 * (for sub-actions).
 	 */
 	const SANE_VIEW_NAME   = '/[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff\/.]*/';
+	
 	/**
-	 * only php tokens are allowed as module names
+	 * Only valid PHP tokens are allowed in module names.
 	 */
 	const SANE_MODULE_NAME = '/[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*/';
 	
@@ -246,13 +249,10 @@ class AgaviExecutionContainer extends AgaviAttributeHolder
 	{
 		$controller = $this->context->getController();
 
-		$request = $this->context->getRequest();
-
 		$controller->countExecution();
 
 		$moduleName = $this->getModuleName();
 		$actionName = $this->getActionName();
-		
 		
 		try {
 			// TODO: cleanup and merge with createActionInstance once Exceptions have been cleaned up and specced properly so that the two error conditions can be told apart
@@ -271,23 +271,13 @@ class AgaviExecutionContainer extends AgaviAttributeHolder
 		// initialize the action
 		$this->actionInstance->initialize($this);
 
+		// copy and merge request data as required
+		$this->initRequestData();
+		
 		if($this->actionInstance->isSimple()) {
-			if($this->arguments !== null) {
-				// clone it so mutating it has no effect on the "outside world"
-				$this->requestData = clone $this->arguments;
-			} else {
-				$rdhc = $request->getParameter('request_data_holder_class');
-				$this->requestData = new $rdhc();
-			}
 			// run the execution filter, without a proper chain
 			$controller->getFilter('execution')->execute(new AgaviFilterChain(), $this);
 		} else {
-			// mmmh I smell awesomeness... clone the RD JIT, yay, that's the spirit
-			$this->requestData = clone $this->globalRequestData;
-
-			if($this->arguments !== null) {
-				$this->requestData->merge($this->arguments);
-			}
 
 			// create a new filter chain
 			$filterChain = $this->context->createInstanceFor('filter_chain');
@@ -317,26 +307,49 @@ class AgaviExecutionContainer extends AgaviAttributeHolder
 		return $this->proceed();
 	}
 	
+	/**
+	 * Copies and merges the global request data.
+	 * 
+	 * @author       Felix Gilcher <felix.gilcher@bitextender.com>
+	 * @since        1.1.0
+	 */
+	protected function initRequestData()
+	{
+		if($this->actionInstance->isSimple()) {
+			if($this->arguments !== null) {
+				// clone it so mutating it has no effect on the "outside world"
+				$this->requestData = clone $this->arguments;
+			} else {
+				$rdhc = $this->getContext()->getRequest()->getParameter('request_data_holder_class');
+				$this->requestData = new $rdhc();
+			}
+		} else {
+			// mmmh I smell awesomeness... clone the RD JIT, yay, that's the spirit
+			$this->requestData = clone $this->globalRequestData;
+
+			if($this->arguments !== null) {
+				$this->requestData->merge($this->arguments);
+			}
+		}
+	}
 	
 	/**
-	 * create a system forward container
+	 * Create a system forward container
 	 *
-	 * calling this method will set the attributes 
-	 * 
+	 * Calling this method will set the attributes:
 	 *  - requested_module
 	 *  - requested_action
-	 *  - an optional system exception 
-	 * 
-	 * in the appropriate namespace on the created container and the request 
-	 * (for legacy reasons)
+	 *  - (optional) exception
+	 * in the appropriate namespace on the created container as well as the global
+	 * request (for legacy reasons)
 	 *
 	 *
-	 * @param      string          the type of forward to create (error_404, 
-	 *                             module_disabled, secure, login, unavailable)
-	 * @param      AgaviException  optional the exception thrown by the controller
-	 *                             when resolving the module/action
+	 * @param      string          The type of forward to create (error_404, 
+	 *                             module_disabled, secure, login, unavailable).
+	 * @param      AgaviException  Optional exception thrown by the controller
+	 *                             while resolving the module/action.
 	 *
-	 * @return     AgaviExecutionContainer The forward container
+	 * @return     AgaviExecutionContainer The forward container.
 	 *
 	 * @author     Felix Gilcher <felix.gilcher@bitextender.com>
 	 * @since      1.0.0
@@ -425,7 +438,7 @@ class AgaviExecutionContainer extends AgaviAttributeHolder
 	
 	
 	/**
-	 * Execute the Action
+	 * Execute the Action.
 	 *
 	 * @return     mixed The processed View information returned by the Action.
 	 *
@@ -435,81 +448,44 @@ class AgaviExecutionContainer extends AgaviAttributeHolder
 	 */
 	public function runAction()
 	{
-		$viewName = null;
-
-		$controller = $this->context->getController();
-		$request = $this->context->getRequest();
-		$validationManager = $this->getValidationManager();
-
-		// get the current action instance
-		$actionInstance = $this->getActionInstance();
-
-		// get the current action information
-		$moduleName = $this->getModuleName();
-		$actionName = $this->getActionName();
-
-		// get the (already formatted) request method
-		$method = $this->getRequestMethod();
-
-		$requestData = $this->getRequestData();
-
-		$useGenericMethods = false;
-		$executeMethod = 'execute' . $method;
-		if(!is_callable(array($actionInstance, $executeMethod))) {
-			$executeMethod = 'execute';
-			$useGenericMethods = true;
+		$context = $this->getContext();
+		$controller = $context->getController();
+		
+		// create a new filter chain
+		$filterChain = $context->createInstanceFor('filter_chain');
+		
+		// register necessary filters
+		if(!$this->getActionInstance()->isSimple()) {
+			$filter = $controller->getFilter('validation');
+			$filterChain->register($filter);
+			$filter = $controller->getFilter('authorization');
+			$filterChain->register($filter);
 		}
-
-		if($actionInstance->isSimple() || ($useGenericMethods && !is_callable(array($actionInstance, $executeMethod)))) {
-			// this action will skip validation/execution for this method
-			// get the default view
-			$key = $request->toggleLock();
-			try {
-				$viewName = $actionInstance->getDefaultViewName();
-			} catch(Exception $e) {
-				// we caught an exception... unlock the request and rethrow!
-				$request->toggleLock($key);
-				throw $e;
-			}
-			$request->toggleLock($key);
-			
-			// run the validation manager - it's going to take care of cleaning up the request data, and retain "conditional" mode behavior etc.
-			// but only if the action is not simple; otherwise, the (safe) arguments in the request data holder will all be removed
-			if(!$actionInstance->isSimple()) {
-				$validationManager->execute($requestData);
-			}
-		} else {
-			if($this->performValidation()) {
-				// execute the action
-				// prevent access to Request::getParameters()
-				$key = $request->toggleLock();
-				try {
-					$viewName = $actionInstance->$executeMethod($requestData);
-				} catch(Exception $e) {
-					// we caught an exception... unlock the request and rethrow!
-					$request->toggleLock($key);
-					throw $e;
-				}
-				$request->toggleLock($key);
-			} else {
-				// validation failed
-				$handleErrorMethod = 'handle' . $method . 'Error';
-				if(!is_callable(array($actionInstance, $handleErrorMethod))) {
-					$handleErrorMethod = 'handleError';
-				}
-				$key = $request->toggleLock();
-				try {
-					$viewName = $actionInstance->$handleErrorMethod($requestData);
-				} catch(Exception $e) {
-					// we caught an exception... unlock the request and rethrow!
-					$request->toggleLock($key);
-					throw $e;
-				}
-				$request->toggleLock($key);
-			}
-		}
-
-		if(is_array($viewName)) {
+		
+		$filter = $controller->getFilter('action_execution');
+		$filterChain->register($filter);
+		
+		// rock and roll
+		$filterChain->execute($this);
+		
+		return array($this->getViewModuleName(), $this->getViewName());
+	}
+	
+	/**
+	 * Resolve the name of the given View.
+	 *
+	 * @param      mixed The View name (array of Module and View or View only).
+	 * @param      mixed The name of the Action to resolve for.
+	 * @param      mixed The name of the View to resolve for.
+	 *
+	 * @return     array An array containing Module name and name for the View.
+	 *
+	 * @author     David Zülke <david.zuelke@bitextender.com>
+	 * @since      1.1.0
+	 */
+	public function resolveViewName($viewName, $actionName, $moduleName)
+	{
+		if(is_array($viewName) && count($viewName) >= 2) {
 			// we're going to use an entirely different action for this view
 			$viewModule = $viewName[0];
 			$viewName   = $viewName[1];
@@ -533,9 +509,9 @@ class AgaviExecutionContainer extends AgaviAttributeHolder
 	}
 	
 	/**
-	 * performs the validation for this container
+	 * Performs validation for this execution container.
 	 * 
-	 * @return     bool true if the data validated successfully, false in any other case
+	 * @return     bool true if the data validated successfully, false otherwise.
 	 * 
 	 * @author     David Zülke <david.zuelke@bitxtender.com>
 	 * @author     Felix Gilcher <felix.gilcher@bitextender.com>
@@ -566,11 +542,20 @@ class AgaviExecutionContainer extends AgaviAttributeHolder
 		}
 
 		// process manual validation
-		return $actionInstance->$validateMethod($requestData) && $validated;
+		$manuallyValidated = $actionInstance->$validateMethod($requestData);
+		if($validated && !$manuallyValidated) {
+			// validation manager did not yield errors, but the manual validation indicated a failure
+			// set the appropriate status code on the validation result
+			$report = $validationManager->getReport();
+			if($report->getResult() < AgaviValidator::ERROR) {
+				$report->setResult(AgaviValidator::ERROR);
+			}
+		}
+		return $manuallyValidated && $validated;
 	}
 
 	/**
-	 * register the validators for this container
+	 * Register validators for this execution container.
 	 * 
 	 * @author     David Zülke <david.zuelke@bitxtender.com>
 	 * @author     Felix Gilcher <felix.gilcher@bitextender.com>
