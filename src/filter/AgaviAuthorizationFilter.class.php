@@ -46,13 +46,13 @@ class AgaviAuthorizationFilter extends AgaviFilter
 	{
 		$action = $container->getActionInstance();
 		
-		$checkAuthorizationMethod = 'check' . $container->getRequestMethod() . 'Authorization';
-		if(!method_exists($action, $checkAuthorizationMethod)) {
-			$checkAuthorizationMethod = 'checkAuthorization';
+		$isAuthorizedMethod = 'is' . $container->getRequestMethod() . 'Authorized';
+		if(!method_exists($action, $isAuthorizedMethod)) {
+			$isAuthorizedMethod = 'isAuthorized';
 		}
 		
 		// TODO: do we need to wrap this in a try/catch block? what happens if an exception is thrown in checkAuthorization()?
-		if($action->$checkAuthorizationMethod($this->getContext()->getUser(), $container->getRequestData())) {
+		if($action->$isAuthorizedMethod($this->getContext()->getUser(), $container->getRequestData())) {
 			$filterChain->execute($container);
 		} else {
 			// TODO: allow actions to handle this case e.g. through handleDenial() or something like that?

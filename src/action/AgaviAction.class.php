@@ -147,7 +147,7 @@ abstract class AgaviAction
 	 * @author     David Zülke <david.zuelke@bitextender.com>
 	 * @since      1.1.0
 	 */
-	public function checkAuthorization(AgaviUser $user, AgaviRequestDataHolder $rd)
+	public function isAuthorized(AgaviUser $user, AgaviRequestDataHolder $rd)
 	{
 		return true;
 	}
