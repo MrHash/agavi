@@ -27,7 +27,7 @@
  * @version    $Id$
  */
 
-$here = realpath(__FILE__);
+$here = realpath(__DIR__);
 
 // load Agavi basics
 require_once($here . '/agavi.php');
