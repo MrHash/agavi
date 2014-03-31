@@ -184,7 +184,7 @@ class AgaviTesting
 	 */
 	protected static function createSuite($name, array $suite) 
 	{
-		$base = (null == $suite['base']) ? 'tests' : $suite['base'];
+		$base = (!isset($suite['base']) || null == $suite['base']) ? 'tests' : $suite['base'];
 		if(!AgaviToolkit::isPathAbsolute($base)) {
 			$base = AgaviConfig::get('core.testing_dir').'/'.$base;
 		}
