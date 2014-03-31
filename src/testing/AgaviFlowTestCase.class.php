@@ -93,6 +93,7 @@ abstract class AgaviFlowTestCase extends AgaviPhpUnitTestCase implements AgaviIF
 		$_SERVER['SCRIPT_NAME'] = '/index.php';
 		
 		$context = AgaviContext::getInstance();
+		$context->getRequest()->setMethod($requestMethod);
 		
 		$controller = $context->getController();
 		$controller->setParameter('send_response', false);
