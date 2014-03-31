@@ -169,6 +169,7 @@ abstract class AgaviPhpUnitTestCase extends PHPUnit_Framework_TestCase
 		return $flag;
 	}
 	
+	
 	/**
 	 * Performs custom preparations on the process isolation template.
 	 *
@@ -225,7 +226,6 @@ abstract class AgaviPhpUnitTestCase extends PHPUnit_Framework_TestCase
 		return null;
 	}
 	
-	
 	/**
 	 * Whether or not an agavi bootstrap should be done in isolation.
 	 * 
@@ -247,4 +247,5 @@ abstract class AgaviPhpUnitTestCase extends PHPUnit_Framework_TestCase
 		}
 		return $flag;
 	}
+	
 }

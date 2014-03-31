@@ -85,7 +85,7 @@ class AgaviTesting
 		// bootstrap the framework for autoload, config handlers etc.
 		Agavi::bootstrap($environment);
 		
-		ini_set('include_path', get_include_path().PATH_SEPARATOR.dirname(dirname(__FILE__)));
+		ini_set('include_path', get_include_path().PATH_SEPARATOR.dirname(__DIR__));
 		
 		$GLOBALS['AGAVI_CONFIG'] = AgaviConfig::toArray();
 	}
@@ -103,9 +103,8 @@ class AgaviTesting
 	 * @author     David Zülke <david.zuelke@bitextender.com>
 	 * @since      1.0.0
 	 */
-	public static function dispatch($arguments = array(), $exit = false)
+	public static function dispatch($arguments = array(), $exit = true)
 	{
-		$GLOBALS['__PHPUNIT_BOOTSTRAP'] = dirname(__FILE__).'/templates/AgaviBootstrap.tpl.php';
 		
 		$suites = include AgaviConfigCache::checkConfig(AgaviConfig::get('core.testing_dir').'/config/suites.xml');
 		$master_suite = new AgaviTestSuite('Master');
@@ -185,9 +184,32 @@ class AgaviTesting
 	 */
 	protected static function createSuite($name, array $suite) 
 	{
+		$base = (null == $suite['base']) ? 'tests' : $suite['base'];
+		if(!AgaviToolkit::isPathAbsolute($base)) {
+			$base = AgaviConfig::get('core.testing_dir').'/'.$base;
+		}
 		$s = new $suite['class']($name);
+		if(!empty($suite['includes'])) {
+			foreach(
+				new RecursiveIteratorIterator(
+					new AgaviRecursiveDirectoryFilterIterator(
+						new RecursiveDirectoryIterator($base), 
+						$suite['includes'], 
+						$suite['excludes']
+					), 
+					RecursiveIteratorIterator::CHILD_FIRST
+				) as $finfo) {
+					
+				if($finfo->isFile()) {
+					$s->addTestFile($finfo->getPathName());
+				}
+			}
+		}
 		foreach($suite['testfiles'] as $file) {
-			$s->addTestFile('tests/'.$file);
+			if(!AgaviToolkit::isPathAbsolute($file)) {
+				$file = $base.'/'.$file;
+			}
+			$s->addTestFile($file);
 		}
 		return $s;
 	}
