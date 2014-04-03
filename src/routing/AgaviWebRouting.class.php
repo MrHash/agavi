@@ -364,7 +364,7 @@ class AgaviWebRouting extends AgaviRouting
 				$append = '?' . http_build_query($params, '', $aso);
 			}
 
-			$retval = $path . $append;
+			$retval = rtrim($path, '/') . $append;
 		}
 
 		if(
